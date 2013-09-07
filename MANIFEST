@@ -14,9 +14,10 @@ t/02_via/simple.t
 t/03_contain/default.t
 t/03_contain/simple.t
 t/04_define/simple.t
-t/99_optional/default.t
-t/99_optional/input.t
-t/99_optional/struct_hash.t
+t/80_additional/default.t
+t/80_additional/input.t
+t/80_additional/struct_hash.t
+t/90_optional/pass.t
 t/util/verify.pl
 META.yml
 MANIFEST
