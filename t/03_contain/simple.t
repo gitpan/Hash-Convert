@@ -20,6 +20,30 @@ verify(
 verify(
     rules   => { human => {
                     contain => {
+                        name => { from => 'name' },
+                        mail => { from => 'mail' },
+                    },
+               }},
+    input   => { name => 'hixi' },
+    expects => { human => { name => 'hixi' } },
+    desc    => 'any exists',
+);
+
+verify(
+    rules   => { human => {
+                    contain => {
+                        name => { from => 'name' },
+                        mail => { from => 'mail' },
+                    },
+               }},
+    input   => { },
+    expects => { },
+    desc    => 'not exists',
+);
+
+verify(
+    rules   => { human => {
+                    contain => {
                         name => {
                             contain=> {
                                 first => { from => 'name1' },

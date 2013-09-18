@@ -12,6 +12,7 @@ t/01_from/simple.t
 t/02_via/default.t
 t/02_via/simple.t
 t/03_contain/default.t
+t/03_contain/from.t
 t/03_contain/simple.t
 t/04_define/simple.t
 t/80_additional/default.t

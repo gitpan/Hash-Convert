@@ -5,7 +5,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = "0.03";
+our $VERSION = "0.04";
 
 my $allow_combine = [
     [qw/from/],
@@ -68,20 +68,18 @@ sub _prepare {
         unless ($self->_validate_cmd(\%cmds)) {
             croak sprintf "%s rules invalid combinations (%s)", $name, join(',', sort keys %cmds);
         }
-        if ($cmds{contain}) {
-            $self->_prepare($rule->{contain});
-            $rule->{depends} = $self->_resolve_depends($rule->{contain});
-            next;
-        }
-
         if ($cmds{from} && not $cmds{via}) {
             if ( (ref $rule->{from} eq 'ARRAY') && (scalar @{$rule->{from}} != 1) ) {
                 croak sprintf "multiple value allowed only 'via' rule. ( from => [%s] )", join(', ', map { "'$_'" } @{$rule->{from}} );
             }
         }
-        my $from = $rule->{from};
-        $from = [$from] if ($from && ref $from ne 'ARRAY');
-        $rule->{depends} = $from;
+
+        if ($cmds{contain}) {
+            $self->_prepare($rule->{contain});
+        }
+        else {
+            $rule->{from} = [$rule->{from}] if ($rule->{from} && ref $rule->{from} ne 'ARRAY');
+        }
     }
 
 }
@@ -129,35 +127,34 @@ sub _process {
     return \%after;
 }
 
-sub _is_exists {
+sub _is_all_exists {
     my ($self, $before, $names) = @_;
 
-    my $exists_size = grep { $self->_resolve_value($before, $_) } @$names;
+    my $exists_size = grep { $self->_resolve_exists($before, $_) } @$names;
     if ($exists_size == scalar @$names) {
         return 1;
     }
     return 0;
 }
 
-
 sub from {
     my ($self, $name, $rule, $before, $after) = @_;
 
-    if ($self->_is_exists($before, $rule->{depends})) {
-        $after->{$name} = $self->_resolve_value($before, $rule->{depends}->[0]);
+    if ($self->_is_all_exists($before, $rule->{from})) {
+        $after->{$name} = $self->_resolve_value($before, $rule->{from}->[0]);
     } elsif (exists $rule->{default}) {
-        $after->{$name} = $rule->{default};
+        $after->{$name} = $self->default($rule->{default});
     }
 }
 
 sub via {
     my ($self, $name, $rule, $before, $after) = @_;
 
-    if ($self->_is_exists($before, $rule->{depends})) {
-        my @args = map { $self->_resolve_value($before, $_) } @{$rule->{depends}};
+    if ($self->_is_all_exists($before, $rule->{from})) {
+        my @args = map { $self->_resolve_value($before, $_) } @{$rule->{from}};
         $after->{$name} = $rule->{via}->(@args);
     } elsif (exists $rule->{default}) {
-        $after->{$name} = $rule->{default};
+        $after->{$name} = $self->default($rule->{default});
     }
 }
 
@@ -169,34 +166,27 @@ sub define {
 sub contain {
     my ($self, $name, $rule, $before, $after) = @_;
 
-    if ($self->_is_exists($before, $rule->{depends})) {
-        $after->{$name} = $self->_process($rule->{contain}, $before);
-    } elsif (exists $rule->{default}) {
-        $after->{$name} = $rule->{default};
+    my $value = $self->_process($rule->{contain}, $before);
+    if (not %$value) {
+        if (exists $rule->{default}) {
+            $after->{$name} = $self->default($rule->{default});
+        }
+        else {
+            # nop
+        }
+    }
+    else {
+        $after->{$name} = $value;
     }
 }
 
-sub _resolve_depends {
-    my ($self, $rules) = @_;
-    my @depends = ();
+sub default {
+    my ($self, $default) = @_;
 
-    for my $rule (sort values %$rules) {
-
-        my $contain = $rule->{contain};
-        if ($contain) {
-            my $nested = $self->_resolve_depends($contain);
-            push @depends, @$nested;
-        }
-
-        my $from = $rule->{from};
-        if ($from) {
-            my $vars = $from;
-            $vars = [$vars] if (ref $vars ne 'ARRAY');
-            push @depends, @$vars;
-        }
+    if (ref $default eq 'CODE') {
+        return $default->();
     }
-
-    return \@depends;
+    return $default;
 }
 
 sub _resolve_value {
@@ -208,6 +198,19 @@ sub _resolve_value {
         $value = $value->{$point};
     }
     return $value;
+}
+
+sub _resolve_exists {
+    my ($self, $before, $name) = @_;
+
+    my $is_exists = 0;
+    my @struct = split /\./, $name;
+    my $value = $before;
+    for my $point (@struct) {
+        $is_exists = exists $value->{$point};
+        $value = $value->{$point};
+    }
+    return $is_exists;
 }
 
 1;
